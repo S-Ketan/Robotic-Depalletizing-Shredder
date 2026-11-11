@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
                     'play = pick_place.play:main',
                     'sequence = pick_place.sequence:main',
+                    'sequence_moveit = pick_place.sequence_moveit:main',
         ],
     },
 )
