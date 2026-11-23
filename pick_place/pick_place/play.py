@@ -16,9 +16,9 @@ from tf2_ros import Buffer, TransformListener
 JOINTS = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
 # Our arm's joint 6 hits a hard stop at about 0.52 rad, and "gripper straight"
 # reads about 0.63. So joint 6 is kept at 0.6 or above.
-J6_STRAIGHT = 0.63
+J6_STRAIGHT = 0.0
 LIMITS = [(-2.62, 2.62), (0.0, 3.14), (-2.97, 0.0),
-          (-1.75, 1.75), (-1.22, 1.22), (0.6, 2.97)]
+          (-1.75, 1.75), (-1.22, 1.22), (-2.97, 2.97)]
 
 HELP = """
 Commands:

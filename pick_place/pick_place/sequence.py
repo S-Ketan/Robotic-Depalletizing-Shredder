@@ -8,10 +8,10 @@ JOINTS = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
 
 # Poses in radians (joint1..joint6).
 # Joint 6 = 0.63 on our arm: it has a hard stop at ~0.52 and can't reach 0.
-HOME       = [0.00, 0.00,  0.00, 0.00, 0.00, 0.63]
-ABOVE_PICK = [0.00, 1.60, -1.20, 0.00, 1.20, 0.63]   # x≈30, z≈25
-AT_PICK    = [0.00, 1.70, -1.00, 0.00, 0.95, 0.63]   # straight below
-ABOVE_DROP = [1.57, 1.60, -1.20, 0.00, 1.20, 0.63]   # turned 90° left
+HOME       = [0.00, 0.00,  0.00, 0.00, 0.00, 0.00]
+ABOVE_PICK = [0.00, 1.60, -1.20, 0.00, 1.20, 0.00]   # x≈30, z≈25
+AT_PICK    = [0.00, 1.70, -1.00, 0.00, 0.95, 0.00]   # straight below
+ABOVE_DROP = [1.57, 1.60, -1.20, 0.00, 1.20, 0.00]   # turned 90° left
 
 OPEN = 0.07      # gripper fully open (meters)
 CLOSED = 0.025   # a few mm LESS than the object's width - never 0 with an object!

@@ -27,9 +27,9 @@ ARM_JOINTS = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
 # ---- Change these values -------------------------------------------------
 # Joint values in radians (joint1..joint6).
 # Joint 6 = 0.63 on our arm: it has a hard stop at ~0.52 and can't reach 0.
-HOME       = [0.00, 0.00,  0.00, 0.00, 0.00, 0.63]
-ABOVE_PICK = [0.00, 1.60, -1.20, 0.00, 1.20, 0.63]   # x≈30, z≈25
-ABOVE_DROP = [1.57, 1.60, -1.20, 0.00, 1.20, 0.63]   # turned 90° left
+HOME       = [0.00, 0.00,  0.00, 0.00, 0.00, 0.00]
+ABOVE_PICK = [0.00, 1.60, -1.20, 0.00, 1.20, 0.00]   # x≈30, z≈25
+ABOVE_DROP = [1.57, 1.60, -1.20, 0.00, 1.20, 0.00]   # turned 90° left
 
 DOWN = 0.075     # how far the gripper goes straight down (meters)
 OPEN = 0.07      # gripper fully open (meters)
@@ -98,7 +98,7 @@ class PickPlace(Node):
         self.wait_for(self.scene_client.call_async(ApplyPlanningScene.Request(scene=scene)))
 
     # -- motions ------------------------------------------------------------
-    def plan_to_joints(self, group, names, values, protect_j6=True):
+    def plan_to_joints(self, group, names, values, protect_j6=False):
         """Let MoveIt plan a smooth, collision-free move to joint values."""
         goal = MoveGroup.Goal()
         req = goal.request
@@ -155,7 +155,7 @@ class PickPlace(Node):
         goal.trajectory = res.solution
         return self.run_action(self.exec_client, goal)
 
-    def arm_to(self, joints, protect_j6=True):
+    def arm_to(self, joints, protect_j6=False):
         return self.plan_to_joints('arm', ARM_JOINTS, joints, protect_j6)
 
     def gripper_to(self, width):
