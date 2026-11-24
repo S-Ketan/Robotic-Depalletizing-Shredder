@@ -35,6 +35,7 @@ DOWN = 0.075     # how far the gripper goes straight down (meters)
 OPEN = 0.07      # gripper fully open (meters)
 CLOSED = 0.025   # a few mm LESS than the object's width - never 0 with an object!
 SPEED = 0.1      # 10 % of max speed; keep it low on the real arm
+SETTLE = 1.0     # seconds to wait after each step, so the real arm catches up
 # ---------------------------------------------------------------------------
 
 
@@ -190,6 +191,7 @@ class PickPlace(Node):
             if not action():
                 self.get_logger().error(f'Step "{name}" failed - stopping.')
                 return
+            time.sleep(SETTLE)
         self.get_logger().info('Done!')
 
 
