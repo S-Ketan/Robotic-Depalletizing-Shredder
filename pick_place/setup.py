@@ -27,6 +27,7 @@ setup(
                     'play = pick_place.play:main',
                     'sequence = pick_place.sequence:main',
                     'sequence_moveit = pick_place.sequence_moveit:main',
+                    'rod_pick = pick_place.rod_pick:main',
         ],
     },
 )
