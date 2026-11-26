@@ -34,11 +34,12 @@ else:
     ## Flat cuboid, standing on its narrow edge: measure and enter the values here (m)
     ROD_LENGTH = 0.41      # long side
     ROD_HEIGHT = 0.05      # how tall it stands
-    ROD_THICK  = 0.02     # thickness, the side the fingers squeeze
+    ROD_THICK  = 0.025     # thickness, the side the fingers squeeze
 
 CLOSED = ROD_THICK - 0.004            # a few mm less than the object - never 0!
-DOWN = 0.115 - ROD_HEIGHT / 2         # fingertips from ~11.5 cm down to the object's mid-height
-
+# DOWN = 0.115 - ROD_HEIGHT / 2         # fingertips from ~11.5 cm down to the object's mid-height
+ABOVE_TIP_HEIGHT = 0.115   # MEASURED fingertip height above the board at ABOVE_PICK (m)
+DOWN = ABOVE_TIP_HEIGHT - ROD_HEIGHT / 2 - 0.005   # stop 5 mm above mid-height
 # ---- Poses ----------------------------------------------------------------
 J6 = 1.57                  # gripper turned 90° -> fingers close across the object
 HOME       = [0.00, 0.00,  0.00, 0.00, 0.00, 0.00]
@@ -46,6 +47,7 @@ ABOVE_PICK = [0.00, 1.60, -1.20, 0.00, 1.20, J6]   # fingertips ~11.5 cm above t
 ABOVE_DROP = [1.57, 1.60, -1.20, 0.00, 1.20, J6]   # turned 90° left
 
 OPEN = 0.07
+FINGERTIP = 0.138        # distance from gripper_base to the fingertips (m, from the gripper model)
 
 # Gripper parts that may touch the object while it is held
 TOUCH_LINKS = ['link6', 'flange_link', 'gripper_base', 'gripper_link1', 'gripper_link2']
@@ -60,8 +62,8 @@ class RodPick(PickPlace):
         self.wait_for(self.scene_client.call_async(ApplyPlanningScene.Request(scene=scene)))
         return True
 
-    def add_rod(self):
-        """Put the object into MoveIt's world, lying on the table along y."""
+    def make_rod(self):
+        """The object as MoveIt sees it, lying on the table along y."""
         rod = CollisionObject()
         rod.header.frame_id = 'base_link'
         rod.id = 'rod'
@@ -80,19 +82,56 @@ class RodPick(PickPlace):
             pose.orientation.w = 1.0
         rod.primitive_poses.append(pose)
         rod.operation = CollisionObject.ADD
+        return rod
 
+    def add_rod(self):
+        """Put the object into MoveIt's world."""
         scene = PlanningScene()
-        scene.world.collision_objects.append(rod)
+        scene.world.collision_objects.append(self.make_rod())
         return self.apply_scene(scene)
 
+    def make_held_rod(self):
+        """The object as it sits in the gripper: centred between the fingertips.
+
+        Defined in the gripper's own frame, so it does not matter where the arm
+        is at the moment of attaching (the real arm can lag behind MoveIt).
+        gripper_base frame: z = pointing out of the gripper, y = finger closing
+        direction, x = across the fingers. Fingertips are ~0.138 m along z.
+        """
+        rod = CollisionObject()
+        rod.header.frame_id = 'gripper_base'
+        rod.id = 'rod'
+        pose = Pose()
+        pose.position.z = FINGERTIP
+        if SHAPE == 'rod':
+            rod.primitives.append(SolidPrimitive(
+                type=SolidPrimitive.CYLINDER, dimensions=[ROD_LENGTH, ROD_DIAMETER / 2]))
+            # cylinder axis (z) turned onto x = across the fingers
+            pose.orientation.y = 0.7071068
+            pose.orientation.w = 0.7071068
+        else:
+            # x = length (across the fingers), y = thickness (squeezed), z = height
+            rod.primitives.append(SolidPrimitive(
+                type=SolidPrimitive.BOX, dimensions=[ROD_LENGTH, ROD_THICK, ROD_HEIGHT]))
+            pose.orientation.w = 1.0
+        rod.primitive_poses.append(pose)
+        rod.operation = CollisionObject.ADD
+        return rod
+
     def attach_rod(self):
-        """Tell MoveIt the object now moves with the gripper."""
+        """Move the object from the table into the gripper (in MoveIt)."""
+        # 1. remove it from the world ...
+        gone = CollisionObject()
+        gone.header.frame_id = 'base_link'
+        gone.id = 'rod'
+        gone.operation = CollisionObject.REMOVE
+        # 2. ... and attach it to the gripper, centred between the fingertips
         held = AttachedCollisionObject()
         held.link_name = 'gripper_base'
-        held.object.id = 'rod'            # takes the object from the world
-        held.object.operation = CollisionObject.ADD
+        held.object = self.make_held_rod()
         held.touch_links = TOUCH_LINKS
         scene = PlanningScene()
+        scene.world.collision_objects.append(gone)
         scene.robot_state.attached_collision_objects.append(held)
         return self.apply_scene(scene)
 
@@ -153,4 +192,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
