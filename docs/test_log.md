@@ -5,8 +5,6 @@ Applied Robotics, WS 2026/27 · AgileX PiPER with AgileX gripper
 **Legend:** `[SIM]` simulation · `[REAL]` real arm
 **Status:** ✅ worked · ⚠️ partly · ❌ failed · ⏳ not tested yet
 
-> Fill in the remaining `<...>` placeholders.
-
 ---
 
 ## Environment
@@ -19,7 +17,7 @@ Applied Robotics, WS 2026/27 · AgileX PiPER with AgileX gripper
 | Arm driver | `agx_arm_ros`, `ros2` branch |
 | Arm SDK | `pyAgxArm` |
 | Arm firmware | S-V1.6-5 (older than 1.8.5: teaching mode is not left automatically) |
-| Own code | `pick_place` package: `play.py`, `sequence.py`, `sequence_moveit.py`, `rod_pick.py`; tools: `arm_check.py`, `gripper_reset.py`, `set_joint_zero.py`, `j6_range_test.py` |
+| Own code | `pick_place` package: `play.py`, `sequence.py`, `sequence_moveit.py`, `rod_pick.py`, `rod_tilt.py`; tools: `arm_check.py`, `gripper_reset.py`, `set_joint_zero.py`, `j6_range_test.py` |
 | Real-arm connection | USB-CAN adapter (Geschwister Schneider / gs_usb), `can0`, 1 Mbit/s |
 | Real-arm speed | `speed_percent = 20` (driver), `SPEED = 0.1` and `SETTLE` pause (MoveIt script) |
 
@@ -55,7 +53,7 @@ Common problems when installing or starting the software. Not test sessions, jus
 | 4 | `sequence` with own poses | full pick-and-place in RViz | ✅ | |
 | 5 | `sequence_moveit`: MoveIt planning + Cartesian straight-line down/up (`DOWN = 0.075 m`) | gripper moves vertically at the object | ✅ | confirmed working 16.11.2026 |
 | 6 | Table added as collision object | table visible, no paths through it | ✅ | |
-| 7 | Collision check: `DOWN = 0.20 m` (into the table) | MoveIt refuses ("Straight line only possible for X %") | ⏳ | <result> |
+| 7 | Collision check: `DOWN = 0.20 m` (into the table) | MoveIt refuses ("Straight line only possible for X %") | ⏳ | not tested yet |
 
 ### Learnings
 - Coordinates: x forward, y left, z up, measured from the bottom centre of the arm base (table height).
@@ -180,7 +178,7 @@ Common problems when installing or starting the software. Not test sessions, jus
 | 8 | Small moves with `play`, incl. joint 6 and gripper | all respond | ✅ | |
 | 9 | `sequence_moveit` on real arm, first run | full sequence | ❌ | MoveIt error −4 at "Straight down" (P5) |
 | 10 | `sequence_moveit` with `SETTLE` pause, no object | full sequence | ✅ | first full MoveIt run on the real arm |
-| 11 | `sequence_moveit` with object (empty camera box), 3 runs in a row | object picked and dropped each time | ✅ | 3/3 successful, video recorded (<file name / link>) |
+| 11 | `sequence_moveit` with object (empty camera box), 3 runs in a row | object picked and dropped each time | ✅ | 3/3 successful, video recorded (on a phone, not uploaded yet) |
 
 **Milestone:** repeatable pick-and-place on the real arm with MoveIt straight-line moves (Phase 2 done).
 
@@ -204,7 +202,7 @@ Common problems when installing or starting the software. Not test sessions, jus
 **P4 – No data on any ROS topic**
 - Symptom: `ros2 node list` showed the driver, but `ros2 topic echo` / `hz` received nothing; even `talker`/`listener` failed
 - Cause: ROS communication between terminals broken (leftover shared-memory files after crashes and/or different shell settings)
-- Fix: <which fix worked: ros2 daemon stop + removing /dev/shm/fastrtps_* / same shell in all terminals / ROS_LOCALHOST_ONLY=1 / firewall>
+- Fix: cleanup of the ROS communication (`ros2 daemon stop`, removing leftover `/dev/shm/fastrtps_*` files, same shell in all terminals; see setup table). Which of these steps solved it was not recorded.
 
 **P5 – MoveIt error −4 (`CONTROL_FAILED`) at "Straight down"**
 - Log: `Invalid Trajectory: start point deviates from current robot state more than 0.01 – joint2 expected 1.48878, current 1.50531`
@@ -264,3 +262,92 @@ Common problems when installing or starting the software. Not test sessions, jus
 - `rod_pick.py` on the real arm: grip in the middle, not on the bubble windows; clear the swing area
 - Clarify real rod and shredder opening dimensions; build an opening mock-up (Phase 4)
 - Start the paper outline (writing starts KW 50)
+
+---
+
+## Session 5 – 26.11.2026 – [SIM][REAL] Phase 3 on the real arm, Phase 4: 45° tilt
+
+### Setup
+- Object: aluminium spirit level, 41 × 5 × 2.5 cm (length × height × thickness), standing on its narrow edge, lying left–right in front of the arm, centred on the pick mark
+- Modelled in MoveIt as a box (`SHAPE = 'box'` in `rod_pick.py`)
+- Simulation: `piper_moveit`; real arm: `piper_real_moveit` (`speed_percent = 20`)
+- Scripts: `rod_pick.py`, new `rod_tilt.py`
+
+### Tests
+| # | Test | Expected | Result | Notes |
+|---|------|----------|--------|-------|
+| 1 | `rod_pick` in simulation with the box model | full sequence | ❌ → ✅ | `NameError: ROD_DIAMETER` (P1) |
+| 2 | `rod_pick` on the real arm with the spirit level | level picked, carried and put down | ✅ | Phase 3 on real hardware |
+| 3 | Reachability of a 45° tilt (arm model, offline calculation) | find a reachable way to tilt the object | ✅ | tilting with the gripper pointing down is not reachable; gripper forward + joint 6 roll works (see Learnings) |
+| 4 | `rod_tilt` in simulation | pick, tilt 45°, put back, "Done!" | ❌ → ✅ | stopped at "Putting it down" (78 %) (P2) |
+| 5 | `rod_tilt` on the real arm, first runs | full sequence | ⚠️ | tilt worked, "Putting it down" stopped at 78 % (P3) |
+| 6 | `rod_tilt` on the real arm | grasp the level | ❌ | joint 6 stall/collision while grasping (P4) |
+| 7 | `rod_tilt` on the real arm | tilt back up | ❌ | joint 6 stall when tilting back up, also with an empty gripper; smaller angles worked (P5) |
+| 8 | Picking and putting down | fingers stop above the board | ❌ | fingers touched the board (P6) |
+| 9 | Joint 6 alignment after the failed runs | gripper straight at 0 rad | ❌ → ✅ | zero point had shifted again → recalibrated (P7) |
+| 10 | `rod_tilt` on the real arm, after the fixes | pick, tilt 45°, hold, tilt back, put back | ✅ | full run successful with `TILT_DEG = −45`; video recorded (on a phone, not uploaded yet) |
+
+**Milestone:** the elongated object (spirit level) is picked, tilted by 45° around its middle and put back on the real arm (Phase 4 tilt motion done).
+
+### Problems
+**P1 – `NameError: name 'ROD_DIAMETER' is not defined`**
+- Cause: object variables switched to the box (spirit level) while `add_rod` still built a cylinder; `ROD_X, ROD_Y` were commented out as well
+- Fix: one `SHAPE = 'box' / 'rod'` switch at the top of `rod_pick.py`; geometry and `CLOSED`/`DOWN` follow automatically
+
+**P2 – "Putting it down" stopped at 78 % (simulation)**
+- Cause: the object was attached by name only; MoveIt kept a copy on the table, and the closed fingers ran into it on the way back down
+- Fix: attaching now removes the object from the world and attaches a full copy to the gripper
+
+**P3 – "Putting it down" stopped at 78 % (real arm)**
+- Cause: the object was attached at its assumed table position; MoveIt stores it relative to where it believes the gripper is, and the real arm was still moving (lagging behind MoveIt), so the object was attached ~2 cm too low
+- Fix: the object is attached in the gripper's own frame (centred between the fingertips, `FINGERTIP = 0.138 m`), independent of timing; `SETTLE` back to 1.5 s
+
+**P4 – Joint 6 stall/collision while grasping**
+- Status: joint 6 `collision_status`, `stall_status`, `driver_overcurrent`, disabled; arm then refused commands ("Agx_arm is not enabled, cannot control")
+- Cause: when the fingers close on a long object that is not exactly parallel/centred, they have to turn it on the board, which twists joint 6
+- Fix: `python3 tools/arm_check.py --reset`; place the level exactly parallel and centred; squeeze less (`CLOSED = thickness − 2 mm`)
+
+**P5 – Joint 6 stall when tilting back up (also with an empty gripper)**
+- Observation: smaller tilt angles worked; 45° failed even without the level
+- Cause: joint 6 was out of calibration again (P7). With the gripper turned 90° for the pick, +45° drives joint 6 to ~2.36 rad, and with the shifted zero point that ran into the end of its range
+- Fix: tilt in the other direction: `TILT_DEG = −45` (joint 6 goes to ~0.79 rad, far from the end of its range); used in the successful run
+- To do: measure joint 6's real upper limit in small steps now that it is recalibrated
+
+**P6 – Fingers touched the board when picking / putting down**
+- `DOWN` in `rod_pick.py` is calculated from a fingertip height of 11.5 cm at ABOVE_PICK (`0.115`). This value matches the measurement from Session 3 (fingertips ~4 cm above the board after moving 7.5 cm down: 4 + 7.5 = 11.5 cm)
+- The touching happened during the runs in which joint 6 was out of calibration; the final run after recalibration worked
+- To do: check the fingertip height again with the gripper turned 90° (joint 6 = 1.57) and adjust the `0.115` if needed
+
+**P7 – Joint 6 zero point shifted again**
+- Symptom: joint 6 read 0 rad, but the gripper was visibly turned to the left; gripper firmly mounted (no play on the flange)
+- Cause (suspected): repeated joint 6 stalls (P4, P5) shift its zero point
+- Fix: recalibrated with `tools/set_joint_zero.py 6`, checked with `tools/j6_range_test.py`
+- Prevention: witness mark across joint 6; avoid stalls; tell the professor if it keeps drifting without stalls
+
+### Code changes
+- `rod_pick.py`: `SHAPE` switch (box / rod), shared `ROD_X, ROD_Y`; object attached in the gripper's frame (`make_held_rod`, `FINGERTIP`)
+- New `rod_tilt.py` (reuses `rod_pick.py`): pick → turn gripper forward (`FORWARD` pose, object middle 25 cm above the board) → roll joint 6 by `TILT_DEG` → hold → back → put down
+
+### Learnings
+- With the gripper pointing down, joint 5 is already at ~69° of its 70° limit, so the PiPER cannot tilt a held object from that pose (only "near end down" is reachable). Turning the gripper forward first and rolling with joint 6 tilts the object exactly around its middle.
+- A tilt in which joint 6 has to lift the object works against gravity; grip long objects at their balance point.
+- Joint 6 is the weak point of our arm: stalls can shift its zero point. Check the alignment after every failed run.
+- The attached object's position must not depend on where the arm is at that moment; define it in the gripper frame.
+- Simulation first: the attach bug (P2) showed up in simulation; testing there before the real arm saves recovery work.
+- Recovering a stuck real arm: open the gripper via RViz (`gripper` → `gripper_open`), `arm_check.py --reset`, restart the MoveIt launch, then `arm` → `home`.
+
+### Sim vs. real
+| Aspect | Simulation | Real arm |
+|---|---|---|
+| Joint 6 range | ±2.97 rad (model) | +45° tilt (→ ~2.36 rad) ran into the end of the range while joint 6 was out of calibration; −45° works |
+| Attaching the object | arm is exactly on time | arm lags → attach in gripper frame |
+| Fingertip height at ABOVE_PICK | 11.5 cm (model) | ~11.5 cm (Session 3 measurement); fingers touched the board while joint 6 was out of calibration |
+| Tilt back up | always works | joint 6 stalled at 45° |
+
+### Next steps
+- Measure joint 6's real upper limit; put a witness mark on joint 6
+- Upload the videos (shared folder or repo link) for the final video and the paper
+- Real rod and shredder opening: ask the professor for dimensions and the rod's weight; build an opening mock-up
+- Phase 5: move the tilted object along its axis into the opening (simulation first)
+- Camera (Intel RealSense): ask the professor whether it is expected or a bonus; if a teammate takes it on: time-boxed, checkpoint KW 51 (ArUco marker detection publishing `/object_pose`)
+- Paper outline (writing starts KW 50); video of the tilt

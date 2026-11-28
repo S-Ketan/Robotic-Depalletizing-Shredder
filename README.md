@@ -46,10 +46,10 @@ source ~/.bashrc
 |---|---|---|
 | `piper` | arm model in RViz with joint sliders | looking at the model, finding poses by hand |
 | `piper_view` | arm model in RViz **without** sliders | `play`, `sequence` (simulation) |
-| `piper_moveit` | MoveIt with a simulated arm | `sequence_moveit`, `rod_pick` (simulation) |
+| `piper_moveit` | MoveIt with a simulated arm | `sequence_moveit`, `rod_pick`, `rod_tilt` (simulation) |
 | `piper_can` | activates CAN (after every power-on or replug) | real arm |
 | `piper_real` | real-arm driver + RViz, 20 % speed | `play`, `sequence` (real arm) |
-| `piper_real_moveit` | real-arm driver + MoveIt, 20 % speed | `sequence_moveit`, `rod_pick` (real arm) |
+| `piper_real_moveit` | real-arm driver + MoveIt, 20 % speed | `sequence_moveit`, `rod_pick`, `rod_tilt` (real arm) |
 | `piper_stop` | emergency stop | anytime on the real arm |
 
 Run only **one** launch shortcut and **one** program that moves the arm at a time.
@@ -62,7 +62,8 @@ Run only **one** launch shortcut and **one** program that moves the arm at a tim
 │       ├── play.py              interactive step-by-step control
 │       ├── sequence.py          pick-and-place with fixed joint poses
 │       ├── sequence_moveit.py   pick-and-place with MoveIt (straight-line moves)
-│       └── rod_pick.py          Phase 3: pick an elongated object lying sideways
+│       ├── rod_pick.py          Phase 3: pick an elongated object lying sideways
+│       └── rod_tilt.py          Phase 4: pick it, tilt it 45° around its middle, put it back
 ├── tools/               helper scripts for the real arm (run with: python3 tools/...)
 │   ├── arm_check.py
 │   ├── gripper_reset.py
@@ -79,7 +80,8 @@ Run only **one** launch shortcut and **one** program that moves the arm at a tim
 | `ros2 run pick_place play` | Move the arm step by step by typing commands (`2 0.1`, `g 0.05`, `set ...`, `home`, `q`). Shows joint values and gripper position. On the real arm it starts from the arm's current position. | `piper_view` | `piper_real` |
 | `ros2 run pick_place sequence` | Full pick-and-place sequence using fixed joint poses. | `piper_view` | `piper_real` |
 | `ros2 run pick_place sequence_moveit` | Pick-and-place planned by MoveIt: straight-line moves down/up at the object, table as collision object, `SETTLE` pause between steps. | `piper_moveit` | `piper_real_moveit` |
-| `ros2 run pick_place rod_pick` | Picks an elongated object lying sideways: gripper turned 90° (joint 6 = 1.57), object attached in MoveIt while carried. Tested in simulation only so far. | `piper_moveit` | `piper_real_moveit` |
+| `ros2 run pick_place rod_pick` | Picks an elongated object lying sideways: gripper turned 90° (joint 6 = 1.57), object attached in MoveIt while carried, put down at the drop spot. Tested on the real arm with a 41 cm spirit level. | `piper_moveit` | `piper_real_moveit` |
+| `ros2 run pick_place rod_tilt` | Picks the object like `rod_pick`, turns the gripper forward (object middle 25 cm above the board), rolls joint 6 by `TILT_DEG` so the object tilts around its middle, holds, then puts it back. Tested on the real arm. Uses the object settings from `rod_pick.py`. | `piper_moveit` | `piper_real_moveit` |
 
 ### Main settings (top of each script)
 | Setting | Meaning |
@@ -88,7 +90,11 @@ Run only **one** launch shortcut and **one** program that moves the arm at a tim
 | `DOWN` | how far the gripper moves straight down to the object (m) |
 | `OPEN`, `CLOSED` | gripper width (m); `CLOSED` = object width minus a few mm |
 | `SPEED` | MoveIt speed factor (0.1 = 10 %) |
-| `SETTLE` | pause after each step so the real arm finishes its move (1.5 s tested; 1.0 s not tested yet) |
+| `SETTLE` | pause after each step so the real arm finishes its move (1.5 s tested) |
+| `SHAPE` (`rod_pick.py`) | `'box'` (flat bar, e.g. spirit level) or `'rod'` (round rod) |
+| `ROD_LENGTH`, `ROD_HEIGHT`, `ROD_THICK` / `ROD_DIAMETER` | measured object size (m); `CLOSED` and `DOWN` are calculated from them |
+| `ROD_X`, `ROD_Y` | object centre on the board (m from the arm base) – must match the pick mark |
+| `TILT_DEG` (`rod_tilt.py`) | tilt angle; the sign decides which end goes down. Use `-45` (tested); `+45` drives joint 6 close to the end of its range |
 
 ## Real arm: start-up order
 
@@ -136,12 +142,28 @@ These scripts talk to the arm directly over CAN using the pyAgxArm SDK. Run them
 | Topics are listed but `ros2 topic echo`/`hz` get nothing (even `talker`/`listener` fail) | Close all ROS programs, `ros2 daemon stop`, `rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*`, use the same shell (bash) in all terminals. |
 | MoveIt error `-4` / `start point deviates from current robot state` | The real arm was still moving. Increase `SETTLE` in the script. |
 | Gripper stops responding after closing on an object | Overcurrent: `python3 tools/gripper_reset.py`; set `CLOSED` larger. |
+| Joint 6 shows `stall` / `collision` / `overcurrent`, arm says `not enabled, cannot control` | Hold the gripper, `python3 tools/arm_check.py --reset`. Common causes: object not parallel/centred when gripping, joint 6 driven to the end of its range. Afterwards check that joint 6 is still aligned (gripper straight at 0 rad). |
+| Gripper visibly turned although joint 6 reads 0 | Joint 6 zero point shifted (happens after stalls). Recalibrate with `tools/set_joint_zero.py 6` (with approval), then `tools/j6_range_test.py`. |
+| `Straight line only possible for X %` at the object | Fingers or object would hit the board/object: check `DOWN` (measure the real fingertip height) and that the object is where `ROD_X, ROD_Y` say. |
+
+## Recovering a stuck real arm (MoveIt launch running)
+
+1. **Hold the object**, then in RViz → MotionPlanning → Planning: Planning Group `gripper`, Goal State `gripper_open`, **Plan**, **Execute**. Take the object out.
+2. `python3 tools/arm_check.py` (and `--reset` if a joint shows errors).
+3. Restart `piper_real_moveit` (clears leftover objects in MoveIt; the arm does not move).
+4. RViz: Planning Group `arm`, Goal State `home`, **Plan**, check the preview, **Execute**.
+
+## Known limitations of our arm
+
+- **Wrist bend (joint 5, ±70°):** with the gripper pointing straight down, joint 5 is already at ~69°. A held object therefore cannot be tilted from that pose; `rod_tilt` turns the gripper forward first and tilts with joint 6.
+- **Joint 6:** the weakest joint. Stalls can shift its zero point; when it is out of calibration, its real range no longer matches the model (a +45° tilt ran into the end of the range). Keep a witness mark across joint 6, check it after failed runs, and use `TILT_DEG = -45` (keeps joint 6 far from the end of its range).
+- **Long objects:** grip them at their balance point; rolling an off-centre object back up loads joint 6.
 
 ## Safety notes
 
 - **Gripper:** never close to 0 m with an object inside (overcurrent shutdown). Set `CLOSED` to the object width minus a few mm.
 - **Object placement:** the scripts go to fixed positions and don't detect the object. Mark the pick spot on the board and centre the object on it, otherwise the fingers can hit it.
-- **Long objects:** clear the swing area before the arm turns to the drop spot.
+- **Long objects:** clear the swing area before the arm turns to the drop spot or tilts; place them exactly parallel and centred on the mark.
 - Always test new code in **simulation first**, then on the real arm at low speed with `piper_stop` ready.
 
 More details, results and failure cases: [`docs/test_log.md`](docs/test_log.md).
